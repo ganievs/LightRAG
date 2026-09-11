@@ -88,7 +88,7 @@ def test_legacy_parse_worker_sanitizes_doc_status_and_full_docs(tmp_path, monkey
 
             await rag.apipeline_enqueue_documents(
                 "",
-                file_paths=str(source_path),
+                file_paths=source_path.name,
                 docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
                 parse_engine="legacy",
             )

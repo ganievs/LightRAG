@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from lightrag.parser.routing import canonicalize_parser_hinted_basename
 from lightrag.utils_pipeline import (
     SIDECAR_LOCATION_UNKNOWN,
     normalize_document_file_path,
@@ -22,17 +23,27 @@ from lightrag.utils_pipeline import (
 
 
 @pytest.mark.offline
-def test_normalize_strips_hint_and_directory():
+def test_normalize_strips_hint_and_keeps_directory():
     assert normalize_document_file_path("abc.[native-iet].docx") == "abc.docx"
-    assert normalize_document_file_path("/tmp/sub/abc.docx") == "abc.docx"
+    assert normalize_document_file_path("/tmp/sub/abc.docx") == "/tmp/sub/abc.docx"
     assert normalize_document_file_path("abc.docx") == "abc.docx"
+    assert (
+        normalize_document_file_path("https://x/notes.[native].md")
+        == "https://x/notes.md"
+    )
+    assert (
+        normalize_document_file_path("https://x/notes.[native].md/")
+        == "https://x/notes.[native].md/"
+    )
+    # Disk lookups still strip directories via the parser-hint helper.
+    assert canonicalize_parser_hinted_basename("/tmp/sub/abc.docx") == "abc.docx"
 
 
 @pytest.mark.offline
 def test_normalize_idempotent():
     once = normalize_document_file_path("/tmp/abc.[native].docx")
     twice = normalize_document_file_path(once)
-    assert once == twice == "abc.docx"
+    assert once == twice == "/tmp/abc.docx"
 
 
 @pytest.mark.offline

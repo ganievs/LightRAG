@@ -1638,14 +1638,26 @@ def test_enqueue_dedupes_by_filename_and_content_hash(tmp_path):
             assert second_doc.get("content_hash")
             assert first_doc["content_hash"] != second_doc["content_hash"]
 
-            # Same filename basename with new content is rejected (filename dedup).
+            # Same basename with new content is rejected (filename dedup).
             await rag.apipeline_enqueue_documents(
                 "changed content",
-                file_paths="/tmp/first.txt",
+                file_paths="first.txt",
                 track_id="track-b",
             )
             first_doc = await rag.full_docs.get_by_id(first_id)
             assert first_doc["content"] == "alpha body"
+
+            # A directory-bearing path is a distinct source from the basename.
+            await rag.apipeline_enqueue_documents(
+                "path-qualified body",
+                file_paths="/tmp/first.txt",
+                track_id="track-b-path",
+            )
+            path_id = compute_mdhash_id("/tmp/first.txt", prefix="doc-")
+            path_doc = await rag.full_docs.get_by_id(path_id)
+            assert path_doc is not None
+            assert path_doc["file_path"] == "/tmp/first.txt"
+            assert path_doc["content"] == "path-qualified body"
 
             # New filename but same content as an existing doc is rejected
             # (content_hash dedup).
@@ -1664,6 +1676,98 @@ def test_enqueue_dedupes_by_filename_and_content_hash(tmp_path):
                 if getattr(doc, "metadata", {}).get("is_duplicate")
             }
             assert {"filename", "content_hash"}.issubset(kinds)
+        finally:
+            await rag.finalize_storages()
+
+    asyncio.run(_run())
+
+
+@pytest.mark.offline
+def test_enqueue_distinct_urls_same_basename_are_separate_docs(tmp_path):
+    async def _run():
+        rag = _new_rag(tmp_path)
+        await rag.initialize_storages()
+        try:
+            url_a = "https://gitlab.example.com/group/repo-a/-/blob/main/README.md"
+            url_b = "https://gitlab.example.com/group/repo-b/-/blob/main/README.md"
+            await rag.apipeline_enqueue_documents(
+                ["alpha from repo A", "beta from repo B"],
+                file_paths=[url_a, url_b],
+                track_id="track-urls",
+            )
+            id_a = compute_mdhash_id(url_a, prefix="doc-")
+            id_b = compute_mdhash_id(url_b, prefix="doc-")
+            doc_a = await rag.full_docs.get_by_id(id_a)
+            doc_b = await rag.full_docs.get_by_id(id_b)
+            assert doc_a is not None
+            assert doc_b is not None
+            assert doc_a["file_path"] == url_a
+            assert doc_b["file_path"] == url_b
+            assert doc_a["content"] == "alpha from repo A"
+            assert doc_b["content"] == "beta from repo B"
+        finally:
+            await rag.finalize_storages()
+
+    asyncio.run(_run())
+
+
+@pytest.mark.offline
+def test_enqueue_strips_hint_from_url_last_segment(tmp_path):
+    async def _run():
+        rag = _new_rag(tmp_path)
+        await rag.initialize_storages()
+        try:
+            hinted = "https://x/notes.[native].md"
+            canonical = "https://x/notes.md"
+            await rag.apipeline_enqueue_documents(
+                "alpha",
+                file_paths=hinted,
+                track_id="track-hint-url",
+            )
+            hinted_id = compute_mdhash_id(hinted, prefix="doc-")
+            canonical_id = compute_mdhash_id(canonical, prefix="doc-")
+            assert await rag.full_docs.get_by_id(hinted_id) is None
+            doc = await rag.full_docs.get_by_id(canonical_id)
+            assert doc is not None
+            assert doc["file_path"] == canonical
+            assert doc["content"] == "alpha"
+        finally:
+            await rag.finalize_storages()
+
+    asyncio.run(_run())
+
+
+@pytest.mark.offline
+def test_enqueue_same_content_different_urls_is_content_hash_dup(tmp_path):
+    async def _run():
+        rag = _new_rag(tmp_path)
+        await rag.initialize_storages()
+        try:
+            url_a = "https://gitlab.example.com/group/repo-a/-/blob/main/README.md"
+            url_b = "https://gitlab.example.com/group/repo-b/-/blob/main/README.md"
+            await rag.apipeline_enqueue_documents(
+                "identical readme body",
+                file_paths=url_a,
+                track_id="track-a",
+            )
+            await rag.apipeline_enqueue_documents(
+                "identical readme body",
+                file_paths=url_b,
+                track_id="track-b",
+            )
+            id_a = compute_mdhash_id(url_a, prefix="doc-")
+            id_b = compute_mdhash_id(url_b, prefix="doc-")
+            assert await rag.full_docs.get_by_id(id_a) is not None
+            assert await rag.full_docs.get_by_id(id_b) is None
+
+            failed_docs = await rag.doc_status.get_docs_by_status(DocStatus.FAILED)
+            dupes = [
+                doc
+                for doc in failed_docs.values()
+                if getattr(doc, "metadata", {}).get("duplicate_kind") == "content_hash"
+            ]
+            assert len(dupes) == 1
+            assert dupes[0].file_path == url_b
         finally:
             await rag.finalize_storages()
 
@@ -1692,7 +1796,7 @@ def test_enqueue_dedupes_parser_hinted_filename_variants(tmp_path):
 
             await rag.apipeline_enqueue_documents(
                 "changed body",
-                file_paths="/tmp/abc.[native].docx",
+                file_paths="abc.[native].docx",
                 track_id="track-b",
             )
             assert (await rag.full_docs.get_by_id(first_id))["content"] == "alpha body"
@@ -1719,7 +1823,7 @@ def test_delete_result_uses_canonical_file_path(tmp_path):
         try:
             await rag.apipeline_enqueue_documents(
                 "",
-                file_paths=str(tmp_path / "abc.[native].docx"),
+                file_paths="abc.[native].docx",
                 docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
                 parse_engine=PARSER_ENGINE_NATIVE,
                 track_id="track-delete-source",
@@ -2144,7 +2248,7 @@ def test_pending_parse_duplicate_hash_fails_and_archives_source(tmp_path, monkey
             original_path.write_bytes(b"original docx bytes")
             await rag.apipeline_enqueue_documents(
                 "",
-                file_paths=str(original_path),
+                file_paths=original_path.name,
                 docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
                 parse_engine=PARSER_ENGINE_NATIVE,
                 track_id="track-original",
@@ -2169,7 +2273,7 @@ def test_pending_parse_duplicate_hash_fails_and_archives_source(tmp_path, monkey
 
             await rag.apipeline_enqueue_documents(
                 "",
-                file_paths=str(source_path),
+                file_paths=source_path.name,
                 docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
                 parse_engine=PARSER_ENGINE_NATIVE,
                 track_id="track-dup",
@@ -2720,6 +2824,34 @@ def test_parser_source_resolver_prefers_exact_canonical_file(tmp_path, monkeypat
 
 
 @pytest.mark.offline
+def test_parser_source_resolver_does_not_use_input_basename_for_uri(
+    tmp_path, monkeypatch
+):
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    (input_dir / "README.md").write_text("uploaded readme", encoding="utf-8")
+    rag = _new_rag(tmp_path / "work")
+    url = "https://gitlab.example.com/group/repo/-/blob/main/README.md"
+
+    assert rag._resolve_source_file_for_parser(url) == url
+
+
+@pytest.mark.offline
+def test_parser_source_resolver_does_not_use_input_basename_for_directory_path(
+    tmp_path, monkeypatch
+):
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    (input_dir / "first.txt").write_text("uploaded", encoding="utf-8")
+    rag = _new_rag(tmp_path / "work")
+    stored = str(tmp_path / "does-not-exist" / "first.txt")
+
+    assert rag._resolve_source_file_for_parser(stored) == stored
+
+
+@pytest.mark.offline
 def test_parse_mineru_to_lightrag_document(tmp_path, monkeypatch):
     """End-to-end: parse_mineru routes through MinerURawClient + sidecar
     writer and produces spec-compliant *.parsed/ + *.mineru_raw/ artifacts.
@@ -2903,7 +3035,7 @@ def test_parse_mineru_uses_hint_source_and_canonical_upload_name(tmp_path, monke
 
         await rag.apipeline_enqueue_documents(
             "",
-            file_paths=str(src_file),
+            file_paths=src_file.name,
             track_id="track-hint",
             docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
             parse_engine=PARSER_ENGINE_MINERU,

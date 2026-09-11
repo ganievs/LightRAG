@@ -90,6 +90,7 @@ from lightrag.utils_pipeline import (
     get_existing_doc_by_file_basename,
     has_known_document_source,
     input_dir_path,
+    is_local_basename_file_path,
     normalize_document_file_path,
     doc_status_metadata_has_attempt_fields,
     doc_status_reset_metadata,
@@ -465,8 +466,9 @@ class _PipelineMixin:
             if len(ids) != len(set(ids)):
                 raise ValueError("IDs must be unique")
 
-        # Canonicalize every input filename once: the stored ``file_path``
-        # is hint-stripped and serves UI display, filename dedup, and the
+        # Canonicalize every input source once: the stored ``file_path``
+        # keeps URI/directory prefixes, strips a parser hint from the last
+        # segment, and serves UI display, source-key dedup, and the
         # deterministic doc_id seed in one go.
         file_paths_canonical = [
             normalize_document_file_path(path) for path in file_paths
@@ -650,7 +652,7 @@ class _PipelineMixin:
             for doc_id in list(unique_new_doc_ids):
                 content_data = contents[doc_id]
 
-                # 3a. Filename-based dedup: same basename always treated as duplicate.
+                # 3a. Source-key dedup: same stored ``file_path`` is a duplicate.
                 match = await get_existing_doc_by_file_basename(
                     self.doc_status, content_data["file_path"]
                 )
@@ -3133,10 +3135,16 @@ class _PipelineMixin:
     ) -> str:
         """Resolve a readable source file path for parser upload.
 
-        ``file_path`` is the canonical stored basename. Pending-parse records
-        may also carry ``source_file`` with the real uploaded/scanned
-        basename, including parser hints.
+        Pending-parse records store an INPUT basename. URI / directory-bearing
+        ``file_path`` values are not looked up by ``Path.name`` in INPUT/.
         """
+        raw = str(file_path or "").strip()
+        if not is_local_basename_file_path(raw):
+            literal = Path(raw)
+            if literal.is_file():
+                return str(literal)
+            return file_path
+
         candidates: list[Path] = []
         roots: list[Path] = []
 
