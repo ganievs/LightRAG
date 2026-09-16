@@ -493,7 +493,9 @@ class InsertTextsRequest(BaseModel):
         if file_sources is None:
             return None
 
-        return [canonicalize_document_source(file_source) for file_source in file_sources]
+        return [
+            canonicalize_document_source(file_source) for file_source in file_sources
+        ]
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -3470,7 +3472,9 @@ def create_document_routes(
                             chunks_count=doc_status.chunks_count,
                             error_msg=doc_status.error_msg,
                             metadata=doc_status.metadata,
-                            file_path=stored_file_path_for_response(doc_status.file_path),
+                            file_path=stored_file_path_for_response(
+                                doc_status.file_path
+                            ),
                         )
                     )
 

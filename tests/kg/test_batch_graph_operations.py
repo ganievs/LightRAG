@@ -412,13 +412,18 @@ class TestAinsertCustomKgBatchPath:
             await rag.ainsert_custom_kg(custom_kg)
 
             text_chunks = rag.text_chunks.upsert.call_args.args[0]
-            assert next(iter(text_chunks.values()))["file_path"] == "/tmp/uploads/test.pdf"
+            assert (
+                next(iter(text_chunks.values()))["file_path"] == "/tmp/uploads/test.pdf"
+            )
 
             entities = rag.entities_vdb.upsert.call_args.args[0]
             assert next(iter(entities.values()))["file_path"] == "/tmp/uploads/test.pdf"
 
             relationships = rag.relationships_vdb.upsert.call_args.args[0]
-            assert next(iter(relationships.values()))["file_path"] == "/tmp/uploads/test.pdf"
+            assert (
+                next(iter(relationships.values()))["file_path"]
+                == "/tmp/uploads/test.pdf"
+            )
 
             await rag.finalize_storages()
 
