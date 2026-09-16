@@ -434,6 +434,9 @@ def test_resolve_null_size_does_not_erase_inherited_default(monkeypatch):
 
 
 class _FwdDocStatus:
+    async def get_doc_by_file_path(self, file_path):
+        return None
+
     async def get_doc_by_file_basename(self, basename):
         return None
 

@@ -6,9 +6,12 @@ sys.argv = sys.argv[:1]
 
 from lightrag.api.routers.document_routes import (  # noqa: E402
     DocStatusResponse,
+    is_local_basename_file_path,
     normalize_file_path,
     pipeline_index_texts,
+    stored_file_path_for_response,
 )
+from lightrag.utils_pipeline import canonicalize_document_source  # noqa: E402
 from lightrag.base import DocStatus  # noqa: E402
 from lightrag.constants import PROCESS_OPTION_CHUNK_FIXED  # noqa: E402
 from lightrag.pipeline import _PipelineMixin  # noqa: E402
@@ -84,7 +87,7 @@ async def test_pipeline_index_texts_rejects_missing_file_sources():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_index_texts_normalizes_file_sources_to_basename():
+async def test_pipeline_index_texts_preserves_file_source_path():
     rag = DummyRAG()
 
     await pipeline_index_texts(
@@ -97,7 +100,7 @@ async def test_pipeline_index_texts_normalizes_file_sources_to_basename():
     assert len(rag.enqueued_calls) == 1
     call = rag.enqueued_calls[0]
     assert call["input"] == ["alpha"]
-    assert call["file_paths"] == ["alpha.txt"]
+    assert call["file_paths"] == ["/tmp/source/alpha.txt"]
     assert call["track_id"] == "track-1"
     assert call["process_options"] == PROCESS_OPTION_CHUNK_FIXED
     # No chunking config supplied -> default F snapshot from addon_params.
@@ -136,7 +139,7 @@ async def test_error_document_enqueue_canonicalizes_file_path_before_upsert():
     )
 
     saved = next(iter(rag.doc_status.upserts[0].values()))
-    assert saved["file_path"] == "report.pdf"
+    assert saved["file_path"] == "/tmp/uploads/report.pdf"
 
 
 @pytest.mark.asyncio
@@ -163,3 +166,134 @@ async def test_custom_chunks_use_canonical_unknown_source_before_upsert():
     assert rag.full_docs.upserts[0]["doc-1"]["file_path"] == "unknown_source"
     chunk = next(iter(rag.text_chunks.upserts[0].values()))
     assert chunk["file_path"] == "unknown_source"
+
+
+@pytest.mark.parametrize(
+    "source, expected",
+    [
+        (
+            "https://gitlab.example.com/group/repo-a/-/blob/main/README.md",
+            "https://gitlab.example.com/group/repo-a/-/blob/main/README.md",
+        ),
+        (
+            "s3://bucket/project-a/docs/index.md",
+            "s3://bucket/project-a/docs/index.md",
+        ),
+        ("project-a/docs/index.md", "project-a/docs/index.md"),
+        ("notes.[native].md", "notes.md"),
+        ("https://x/notes.[native].md", "https://x/notes.md"),
+        ("HTTPS://X/notes.[native].md", "HTTPS://X/notes.md"),
+        (
+            "https://x/notes.[native].md?ref=main#section",
+            "https://x/notes.md?ref=main#section",
+        ),
+        (
+            "https://x/notes.[native].md?v=1.2",
+            "https://x/notes.[native].md?v=1.2",
+        ),
+        ("https://x/notes.[native].md/", "https://x/notes.[native].md/"),
+        ("https://x/README.md/", "https://x/README.md/"),
+        ("https://x/", "https://x/"),
+        ("https://x/unknown_source", "https://x/unknown_source"),
+        (r"C:\docs\notes.[native].md", r"C:\docs\notes.md"),
+        ("abc.docx", "abc.docx"),
+        ("/tmp/sub/abc.docx", "/tmp/sub/abc.docx"),
+        ("/tmp/sub/", "/tmp/sub/"),
+        (None, "unknown_source"),
+        ("", "unknown_source"),
+        ("no-file-path", "unknown_source"),
+        ("  ", "unknown_source"),
+    ],
+)
+def test_canonicalize_document_source_identity(source, expected):
+    assert canonicalize_document_source(source) == expected
+
+
+def test_stored_file_path_for_response_keeps_url_and_maps_sentinels():
+    url = "https://gitlab.example.com/group/repo/-/blob/main/README.md"
+    assert stored_file_path_for_response(url) == url
+    assert stored_file_path_for_response(None) == "unknown_source"
+    assert stored_file_path_for_response("") == "unknown_source"
+    assert stored_file_path_for_response("no-file-path") == "unknown_source"
+    assert stored_file_path_for_response("README.md") == "README.md"
+
+
+def test_is_local_basename_file_path():
+    assert is_local_basename_file_path("README.md")
+    assert is_local_basename_file_path("report.pdf")
+    assert is_local_basename_file_path("notes.[native].md")
+    assert not is_local_basename_file_path(
+        "https://gitlab.example.com/group/repo/-/blob/main/README.md"
+    )
+    assert not is_local_basename_file_path("s3://bucket/docs/index.md")
+    assert not is_local_basename_file_path("project-a/docs/index.md")
+    assert not is_local_basename_file_path("/tmp/sub/abc.docx")
+    assert not is_local_basename_file_path("README.md/")
+    assert not is_local_basename_file_path("")
+
+
+@pytest.mark.asyncio
+async def test_pipeline_index_texts_rejects_duplicate_sources():
+    rag = DummyRAG()
+
+    with pytest.raises(ValueError, match="File sources must be unique"):
+        await pipeline_index_texts(
+            rag,
+            texts=["alpha", "beta"],
+            file_sources=[
+                "https://gitlab.example.com/group/repo/-/blob/main/README.md",
+                "https://gitlab.example.com/group/repo/-/blob/main/README.md",
+            ],
+        )
+
+    assert rag.enqueued_calls == []
+
+
+@pytest.mark.asyncio
+async def test_pipeline_index_texts_keeps_distinct_urls_with_same_basename():
+    rag = DummyRAG()
+    sources = [
+        "https://gitlab.example.com/group/repo-a/-/blob/main/README.md",
+        "https://gitlab.example.com/group/repo-b/-/blob/main/README.md",
+    ]
+
+    await pipeline_index_texts(
+        rag,
+        texts=["alpha from repo A", "beta from repo B"],
+        file_sources=sources,
+        track_id="track-urls",
+    )
+
+    assert rag.enqueued_calls[0]["file_paths"] == sources
+    assert rag.processed is True
+
+
+@pytest.mark.asyncio
+async def test_pipeline_index_texts_strips_hint_from_url_last_segment():
+    rag = DummyRAG()
+
+    await pipeline_index_texts(
+        rag,
+        texts=["alpha"],
+        file_sources=["https://x/notes.[native].md"],
+        track_id="track-hint",
+    )
+
+    assert rag.enqueued_calls[0]["file_paths"] == ["https://x/notes.md"]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_index_texts_rejects_hinted_and_plain_url_as_duplicate():
+    rag = DummyRAG()
+
+    with pytest.raises(ValueError, match="File sources must be unique"):
+        await pipeline_index_texts(
+            rag,
+            texts=["alpha", "beta"],
+            file_sources=[
+                "https://x/notes.[native].md",
+                "https://x/notes.md",
+            ],
+        )
+
+    assert rag.enqueued_calls == []

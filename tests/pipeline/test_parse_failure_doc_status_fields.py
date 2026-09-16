@@ -194,7 +194,7 @@ async def test_legacy_parse_failure_maps_ui_fields_and_retry_clears_them(
         source_path = input_dir / "missing.txt"  # deliberately not created
         await rag.apipeline_enqueue_documents(
             "",
-            file_paths=str(source_path),
+            file_paths=source_path.name,
             docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
             parse_engine="legacy",
             process_options="i",
@@ -263,7 +263,7 @@ async def test_third_party_engine_failure_records_engine_name(tmp_path, monkeypa
         source_path.write_text("some body")
         await rag.apipeline_enqueue_documents(
             "",
-            file_paths=str(source_path),
+            file_paths=source_path.name,
             docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
             parse_engine="boomengine",
         )
@@ -321,7 +321,7 @@ async def test_repeat_failure_replaces_stale_generated_summary(tmp_path, monkeyp
         source_path.write_text("some body")
         await rag.apipeline_enqueue_documents(
             "",
-            file_paths=str(source_path),
+            file_paths=source_path.name,
             docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
             parse_engine="flakyengine",
         )
@@ -427,7 +427,7 @@ async def test_parse_worker_logs_when_failed_upsert_itself_fails(
         source_path.write_text("some body")
         await rag.apipeline_enqueue_documents(
             "",
-            file_paths=str(source_path),
+            file_paths=source_path.name,
             docs_format=FULL_DOCS_FORMAT_PENDING_PARSE,
             parse_engine="boomengine",
         )

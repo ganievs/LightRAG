@@ -144,25 +144,41 @@ def resolve_doc_file_path(
     return "unknown_source"
 
 
-def normalize_document_file_path(file_path: Any) -> str:
-    """Return the canonical basename stored as ``file_path``.
+def _strip_hint_from_last_segment(path: str) -> str:
+    """Strip a parser hint from the last path segment, preserving its prefix."""
+    if not path or path.endswith(("/", "\\")):
+        return path
 
-    Strips any supported ``[hint]`` segment so ``abc.docx`` and
-    ``abc.[native-iet].docx`` map to the same key. Collapses placeholders to
-    ``"unknown_source"``. Idempotent.
+    separator = max(path.rfind("/"), path.rfind("\\"))
+    prefix = path[: separator + 1]
+    name = path[separator + 1 :]
+    canonical_name = canonicalize_parser_hinted_basename(name).strip()
+    return f"{prefix}{canonical_name or name}"
+
+
+def canonicalize_document_source(source: Any) -> str:
+    """Return the identity string stored as ``file_path``.
+
+    A single path component is canonicalized as a filename. Otherwise a
+    parser hint is stripped from the last segment only, so directory and
+    URI prefixes stay in the identity. Trailing slashes are left unchanged.
+    Collapses whole-source placeholders to ``"unknown_source"``. Idempotent.
     """
-    source = str(file_path or "").strip()
-    if source in PLACEHOLDER_DOCUMENT_SOURCES:
+    text = str(source or "").strip()
+    if text in PLACEHOLDER_DOCUMENT_SOURCES:
         return "unknown_source"
-    canonical = canonicalize_parser_hinted_basename(source).strip()
-    if canonical in PLACEHOLDER_DOCUMENT_SOURCES:
-        return "unknown_source"
-    return canonical or "unknown_source"
+    if is_local_basename_file_path(text):
+        return canonicalize_parser_hinted_basename(text) or "unknown_source"
+    return _strip_hint_from_last_segment(text) or "unknown_source"
 
 
-# Back-compat alias retained until call sites that import the old name are
-# all switched over (the public surface is ``normalize_document_file_path``).
-document_canonical_key = normalize_document_file_path
+normalize_document_file_path = canonicalize_document_source
+document_canonical_key = canonicalize_document_source
+
+
+def is_local_basename_file_path(file_path: str) -> bool:
+    """True when ``file_path`` is a single path component (an INPUT filename)."""
+    return bool(file_path) and Path(file_path).name == file_path
 
 
 def has_known_document_source(source_key: str) -> bool:

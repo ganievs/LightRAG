@@ -320,7 +320,7 @@ async def test_pipeline_index_file_leaves_lightrag_document_docx_for_parser_arch
 
     assert file_path.exists()
     assert not (tmp_path / PARSED_DIR_NAME / file_path.name).exists()
-    assert rag.enqueued[0]["file_path"] == str(file_path)
+    assert rag.enqueued[0]["file_path"] == file_path.name
     assert rag.enqueued[0]["docs_format"] == FULL_DOCS_FORMAT_PENDING_PARSE
     assert rag.enqueued[0]["parse_engine"] == "native"
 
@@ -341,7 +341,7 @@ async def test_pipeline_enqueue_lightrag_document_docx_does_not_move_source(
     assert returned_track_id == "track-docx"
     assert file_path.exists()
     assert not (tmp_path / PARSED_DIR_NAME / file_path.name).exists()
-    assert rag.enqueued[0]["file_path"] == str(file_path)
+    assert rag.enqueued[0]["file_path"] == file_path.name
     assert rag.enqueued[0]["docs_format"] == FULL_DOCS_FORMAT_PENDING_PARSE
     assert rag.enqueued[0]["parse_engine"] == "native"
 
@@ -363,7 +363,7 @@ async def test_pipeline_enqueue_docx_defers_to_legacy_parser(tmp_path, monkeypat
     assert rag.enqueued == [
         {
             "input": "",
-            "file_path": str(file_path),
+            "file_path": file_path.name,
             "track_id": "track-docx",
             "docs_format": FULL_DOCS_FORMAT_PENDING_PARSE,
             "parse_engine": "legacy",
@@ -391,7 +391,7 @@ async def test_pipeline_enqueue_md_defers_to_legacy_parser(tmp_path, monkeypatch
     assert rag.enqueued == [
         {
             "input": "",
-            "file_path": str(file_path),
+            "file_path": file_path.name,
             "track_id": "track-md",
             "docs_format": FULL_DOCS_FORMAT_PENDING_PARSE,
             "parse_engine": "legacy",
@@ -451,7 +451,7 @@ async def test_pipeline_enqueue_parser_routed_pdf_defers_without_extraction(
     assert rag.enqueued == [
         {
             "input": "",
-            "file_path": str(file_path),
+            "file_path": file_path.name,
             "track_id": "track-pdf",
             "docs_format": FULL_DOCS_FORMAT_PENDING_PARSE,
             "parse_engine": "mineru",
@@ -480,7 +480,7 @@ async def test_pipeline_enqueue_passes_process_options_from_filename_hint(
     assert rag.enqueued == [
         {
             "input": "",
-            "file_path": str(file_path),
+            "file_path": "report.docx",
             "track_id": "track-options",
             "docs_format": FULL_DOCS_FORMAT_PENDING_PARSE,
             "parse_engine": "native",

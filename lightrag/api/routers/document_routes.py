@@ -54,6 +54,10 @@ from lightrag.utils import (
     generate_track_id,
     move_file_to_parsed_dir,
 )
+from lightrag.utils_pipeline import (
+    canonicalize_document_source,
+    is_local_basename_file_path,
+)
 from lightrag.api.utils_api import get_combined_auth_dependency
 from ..config import global_args
 
@@ -112,7 +116,17 @@ def normalize_file_path(file_path: str | None) -> str:
 def is_valid_file_source(file_source: str | None) -> bool:
     if file_source is None:
         return False
-    return normalize_file_path(file_source) != UNKNOWN_FILE_SOURCE
+    return canonicalize_document_source(file_source) != UNKNOWN_FILE_SOURCE
+
+
+def stored_file_path_for_response(file_path: str | None) -> str:
+    """Map empty sentinels to ``unknown_source``; keep URI and directory prefixes."""
+    if file_path is None:
+        return UNKNOWN_FILE_SOURCE
+    normalized = str(file_path).strip()
+    if normalized in LEGACY_EMPTY_FILE_PATH_SENTINELS:
+        return UNKNOWN_FILE_SOURCE
+    return normalized or UNKNOWN_FILE_SOURCE
 
 
 def sanitize_filename(filename: str, input_dir: Path) -> str:
@@ -425,7 +439,7 @@ class InsertTextRequest(BaseModel):
     @field_validator("file_source", mode="before")
     @classmethod
     def normalize_source_before(cls, file_source: Optional[str]) -> str:
-        return normalize_file_path(file_source)
+        return canonicalize_document_source(file_source)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -479,7 +493,7 @@ class InsertTextsRequest(BaseModel):
         if file_sources is None:
             return None
 
-        return [normalize_file_path(file_source) for file_source in file_sources]
+        return [canonicalize_document_source(file_source) for file_source in file_sources]
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -1480,8 +1494,15 @@ def delete_file_variants_by_file_path(
     input_dir: Path,
     file_path: str | None,
 ) -> tuple[list[str], list[str]]:
-    """Delete input/__parsed__ source files matching a canonical ``file_path``."""
+    """Delete input/__parsed__ source files matching a canonical ``file_path``.
+
+    URI / directory-bearing sources (``/documents/text``) never land a file
+    in ``INPUT/``. Looking them up by ``Path.name`` would match an unrelated
+    local basename (e.g. ``README.md``).
+    """
     if not file_path:
+        return [], []
+    if not is_local_basename_file_path(str(file_path).strip()):
         return [], []
     canonical = normalize_file_path(file_path)
     if canonical == UNKNOWN_FILE_SOURCE:
@@ -1685,7 +1706,7 @@ async def pipeline_enqueue_file(
         )
         try:
             enqueue_kwargs = {
-                "file_paths": str(file_path),
+                "file_paths": normalize_file_path(file_path.name),
                 "track_id": track_id,
                 "docs_format": FULL_DOCS_FORMAT_PENDING_PARSE,
                 "parse_engine": parse_engine_field,
@@ -1963,11 +1984,13 @@ async def pipeline_index_texts(
     if not file_sources or len(file_sources) != len(texts):
         raise ValueError("A valid file source is required for each text")
 
-    normalized_file_sources = [normalize_file_path(source) for source in file_sources]
+    normalized_file_sources = [
+        canonicalize_document_source(source) for source in file_sources
+    ]
     if any(source == UNKNOWN_FILE_SOURCE for source in normalized_file_sources):
         raise ValueError("A valid file source is required for each text")
     if len(set(normalized_file_sources)) != len(normalized_file_sources):
-        raise ValueError("File sources must be unique by filename")
+        raise ValueError("File sources must be unique")
 
     process_options, chunk_options = _resolve_text_chunking(chunking, rag)
     await rag.apipeline_enqueue_documents(
@@ -2854,9 +2877,9 @@ def create_document_routes(
                     detail="A valid file_source is required for text insertion",
                 )
 
-            normalized_file_source = normalize_file_path(request.file_source)
-            existing_doc_data = await get_existing_doc_by_file_path_candidates(
-                rag.doc_status, normalized_file_source
+            normalized_file_source = canonicalize_document_source(request.file_source)
+            existing_doc_data = await rag.doc_status.get_doc_by_file_path(
+                normalized_file_source
             )
             if existing_doc_data:
                 status = get_doc_status_value(existing_doc_data) or "unknown"
@@ -2962,7 +2985,8 @@ def create_document_routes(
                 )
 
             normalized_file_sources = [
-                normalize_file_path(file_source) for file_source in request.file_sources
+                canonicalize_document_source(file_source)
+                for file_source in request.file_sources
             ]
             if any(
                 file_source == UNKNOWN_FILE_SOURCE
@@ -2975,12 +2999,12 @@ def create_document_routes(
             if len(set(normalized_file_sources)) != len(normalized_file_sources):
                 raise HTTPException(
                     status_code=400,
-                    detail="file_sources must be unique by filename",
+                    detail="file_sources must be unique",
                 )
 
             for file_source in normalized_file_sources:
-                existing_doc_data = await get_existing_doc_by_file_path_candidates(
-                    rag.doc_status, file_source
+                existing_doc_data = await rag.doc_status.get_doc_by_file_path(
+                    file_source
                 )
                 if existing_doc_data:
                     status = get_doc_status_value(existing_doc_data) or "unknown"
@@ -3446,7 +3470,7 @@ def create_document_routes(
                             chunks_count=doc_status.chunks_count,
                             error_msg=doc_status.error_msg,
                             metadata=doc_status.metadata,
-                            file_path=normalize_file_path(doc_status.file_path),
+                            file_path=stored_file_path_for_response(doc_status.file_path),
                         )
                     )
 
@@ -3650,7 +3674,7 @@ def create_document_routes(
                         chunks_count=doc_status.chunks_count,
                         error_msg=doc_status.error_msg,
                         metadata=doc_status.metadata,
-                        file_path=normalize_file_path(doc_status.file_path),
+                        file_path=stored_file_path_for_response(doc_status.file_path),
                     )
                 )
 
@@ -3802,7 +3826,7 @@ def create_document_routes(
                         chunks_count=doc.chunks_count,
                         error_msg=doc.error_msg,
                         metadata=doc.metadata,
-                        file_path=normalize_file_path(doc.file_path),
+                        file_path=stored_file_path_for_response(doc.file_path),
                     )
                 )
 

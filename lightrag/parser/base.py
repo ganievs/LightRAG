@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from lightrag.parser.routing import canonicalize_parser_hinted_basename
+
 if TYPE_CHECKING:
     from lightrag.sidecar.ir import IRDoc  # noqa: F401
 
@@ -79,13 +81,13 @@ class ParseContext:
         the ``__parsed__/<base>.parsed/`` output directory.
         """
         from lightrag.utils_pipeline import (
-            normalize_document_file_path,
+            PLACEHOLDER_DOCUMENT_SOURCES,
             parsed_artifact_dir_for,
         )
 
         source_path = self.source_path(parser_engine)
-        document_name = normalize_document_file_path(self.file_path)
-        if document_name == "unknown_source":
+        document_name = canonicalize_parser_hinted_basename(self.file_path).strip()
+        if not document_name or document_name in PLACEHOLDER_DOCUMENT_SOURCES:
             document_name = source_path.name or f"{self.doc_id}.bin"
         parsed_dir = parsed_artifact_dir_for(
             document_name, parent_hint=source_path.parent

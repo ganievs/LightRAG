@@ -387,7 +387,7 @@ class TestAinsertCustomKgBatchPath:
     @pytest.mark.offline
     @pytest.mark.asyncio
     async def test_ainsert_custom_kg_canonicalizes_file_paths_before_upsert(self):
-        """custom KG ingestion normalizes file names before touching storage."""
+        """custom KG ingestion strips a parser hint but keeps the directory prefix."""
         from lightrag import LightRAG
 
         custom_kg = self._make_custom_kg()
@@ -412,13 +412,13 @@ class TestAinsertCustomKgBatchPath:
             await rag.ainsert_custom_kg(custom_kg)
 
             text_chunks = rag.text_chunks.upsert.call_args.args[0]
-            assert next(iter(text_chunks.values()))["file_path"] == "test.pdf"
+            assert next(iter(text_chunks.values()))["file_path"] == "/tmp/uploads/test.pdf"
 
             entities = rag.entities_vdb.upsert.call_args.args[0]
-            assert next(iter(entities.values()))["file_path"] == "test.pdf"
+            assert next(iter(entities.values()))["file_path"] == "/tmp/uploads/test.pdf"
 
             relationships = rag.relationships_vdb.upsert.call_args.args[0]
-            assert next(iter(relationships.values()))["file_path"] == "test.pdf"
+            assert next(iter(relationships.values()))["file_path"] == "/tmp/uploads/test.pdf"
 
             await rag.finalize_storages()
 
