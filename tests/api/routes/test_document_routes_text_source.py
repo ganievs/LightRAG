@@ -309,11 +309,7 @@ def test_paginated_and_track_status_return_full_url(monkeypatch):
 
     listed = client.get("/documents", headers=_HEADERS)
     assert listed.status_code == 200
-    listed_docs = [
-        doc
-        for docs in listed.json()["statuses"].values()
-        for doc in docs
-    ]
+    listed_docs = [doc for docs in listed.json()["statuses"].values() for doc in docs]
     assert listed_docs[0]["file_path"] == _URL_A
 
     tracked = client.get("/documents/track_status/track-text", headers=_HEADERS)
@@ -352,7 +348,9 @@ async def test_upload_basename_lookup_ignores_url_with_same_filename():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_enqueue_file_stores_basename_not_full_path(tmp_path, monkeypatch):
+async def test_pipeline_enqueue_file_stores_basename_not_full_path(
+    tmp_path, monkeypatch
+):
     monkeypatch.delenv("LIGHTRAG_PARSER", raising=False)
     file_path = tmp_path / "report.pdf"
     file_path.write_bytes(b"pdf-bytes")
