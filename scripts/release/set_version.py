@@ -16,9 +16,7 @@ def normalize_core_version(raw_version: str) -> str:
 
 
 def read_public_version(content: str) -> str:
-    match = re.search(
-        r'^__version__\s*=\s*"([^"]*)"$', content, flags=re.MULTILINE
-    )
+    match = re.search(r'^__version__\s*=\s*"([^"]*)"$', content, flags=re.MULTILINE)
     if not match:
         raise ValueError(f"Could not read __version__ in {VERSION_FILE}")
     return match.group(1).split("+", 1)[0]
