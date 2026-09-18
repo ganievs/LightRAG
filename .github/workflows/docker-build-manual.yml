@@ -39,16 +39,15 @@ jobs:
           else
             echo "Latest tag found: $LATEST_TAG"
           fi
-          PACKAGE_VERSION="${LATEST_TAG#v}"
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "image_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "package_version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "app_version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Update version definitions
+        id: version
         run: |
-          python scripts/release/set_version.py --core-version "${{ steps.get_tag.outputs.package_version }}"
-          echo "Updated version definitions with ${{ steps.get_tag.outputs.package_version }}"
-          grep '__version__ = ' lightrag/_version.py
+          version=$(python scripts/release/set_version.py --append-local "${{ steps.get_tag.outputs.app_version }}")
+          image_tag="${version/+/-}"
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -69,7 +68,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ steps.get_tag.outputs.tag }}
+            type=raw,value=${{ steps.version.outputs.image_tag }}
 
       - name: Build and push Docker image
         id: build-and-push
@@ -104,6 +103,6 @@ jobs:
         run: |
           echo "Docker image built and pushed successfully!"
           echo "Image tags:"
-          echo "  - ghcr.io/${{ github.repository }}:${{ steps.get_tag.outputs.tag }}"
+          echo "  - ghcr.io/${{ github.repository }}:${{ steps.version.outputs.image_tag }}"
           echo "Signed manifest digest: ${{ steps.build-and-push.outputs.digest }}"
-          echo "Latest Git tag used: ${{ steps.get_tag.outputs.tag }}"
+          echo "Git tag used: ${{ steps.get_tag.outputs.tag }}"

@@ -38,21 +38,22 @@ jobs:
           else
             echo "Latest tag found: $LATEST_TAG"
           fi
-          PACKAGE_VERSION="${LATEST_TAG#v}"
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "package_version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "app_version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Update version definitions
+        id: version
+        run: |
+          version=$(python scripts/release/set_version.py --append-local "${{ steps.get_tag.outputs.app_version }}")
+          image_tag="${version/+/-}"
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
 
       - name: Prepare lite tag
         id: lite_tag
         run: |
-          LITE_TAG="${{ steps.get_tag.outputs.tag }}-lite"
+          LITE_TAG="${{ steps.version.outputs.image_tag }}-lite"
           echo "Lite image tag: $LITE_TAG"
           echo "lite_tag=$LITE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Update version definitions
-        run: |
-          python scripts/release/set_version.py --core-version "${{ steps.get_tag.outputs.package_version }}"
-          grep '__version__ = ' lightrag/_version.py
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
