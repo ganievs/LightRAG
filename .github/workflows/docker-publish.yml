@@ -49,10 +49,9 @@ jobs:
             echo "No git tag found for docker publish"
             exit 1
           fi
-          PACKAGE_VERSION="${TAG#v}"
           echo "Found tag: $TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "package_version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "app_version=${TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Check if pre-release
         id: check_prerelease
@@ -67,10 +66,11 @@ jobs:
           fi
 
       - name: Update version definitions
+        id: version
         run: |
-          python scripts/release/set_version.py --core-version "${{ steps.get_tag.outputs.package_version }}"
-          echo "Updated version definitions with ${{ steps.get_tag.outputs.package_version }}"
-          grep '__version__ = ' lightrag/_version.py
+          version=$(python scripts/release/set_version.py --append-local "${{ steps.get_tag.outputs.app_version }}")
+          image_tag="${version/+/-}"
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata for Docker
         id: meta
@@ -78,7 +78,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ steps.get_tag.outputs.tag }}
+            type=raw,value=${{ steps.version.outputs.image_tag }}
             type=raw,value=latest,enable=${{ steps.check_prerelease.outputs.is_prerelease == 'false' }}
 
       - name: Build and push Docker image
@@ -114,7 +114,7 @@ jobs:
         run: |
           echo "Docker image built and pushed successfully!"
           echo "Image tags:"
-          echo "  - ghcr.io/${{ github.repository }}:${{ steps.get_tag.outputs.tag }}"
+          echo "  - ghcr.io/${{ github.repository }}:${{ steps.version.outputs.image_tag }}"
           echo "  - ghcr.io/${{ github.repository }}:latest"
           echo "Signed manifest digest: ${{ steps.build-and-push.outputs.digest }}"
-          echo "Latest Git tag used: ${{ steps.get_tag.outputs.tag }}"
+          echo "Git tag used: ${{ steps.get_tag.outputs.tag }}"

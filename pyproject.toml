@@ -127,6 +127,7 @@ offline-llm = [
     "voyageai>=0.2.0,<1.0.0",
     "llama-index>=0.14.0,<1.0.0",  # Updated to ensure compatibility with openai 2.x
     "llama-index-llms-openai>=0.6.12",  # Explicitly require version that supports openai 2.x
+    "nltk>=3.10.3",  # security floor: CVE-2026-78683 / CVE-2026-79657 / CVE-2026-79675 (transitive via llama-index)
     "google-api-core>=2.0.0,<3.0.0",
     "google-genai>=1.0.0,<3.0.0",
 ]

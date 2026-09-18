@@ -56,16 +56,11 @@ jobs:
             echo "No git tag found for release build"
             exit 1
           fi
-          PACKAGE_VERSION="${TAG#v}"
           echo "Found tag: $TAG"
-          echo "Package version: $PACKAGE_VERSION"
-          echo "version=$TAG" >> $GITHUB_OUTPUT
-          echo "package_version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "app_version=${TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Update version definitions
-        run: |
-          python scripts/release/set_version.py --core-version "${{ steps.get_version.outputs.package_version }}"
-          grep '__version__ = ' lightrag/_version.py
+        run: python scripts/release/set_version.py --append-local "${{ steps.get_version.outputs.app_version }}"
 
       - name: Build release distributions
         run: |
