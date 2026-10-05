@@ -3,6 +3,7 @@ STORAGE_IMPLEMENTATIONS = {
         "implementations": [
             "JsonKVStorage",
             "RedisKVStorage",
+            "ValkeyClusterKVStorage",
             "PGKVStorage",
             "MongoKVStorage",
             "OpenSearchKVStorage",
@@ -37,6 +38,7 @@ STORAGE_IMPLEMENTATIONS = {
         "implementations": [
             "JsonDocStatusStorage",
             "RedisDocStatusStorage",
+            "ValkeyClusterDocStatusStorage",
             "PGDocStatusStorage",
             "MongoDocStatusStorage",
             "OpenSearchDocStatusStorage",
@@ -54,6 +56,7 @@ STORAGE_ENV_REQUIREMENTS: dict[str, list[str]] = {
         "MONGO_DATABASE",
     ],
     "RedisKVStorage": ["REDIS_URI"],
+    "ValkeyClusterKVStorage": ["VALKEY_CLUSTER_URI"],
     "PGKVStorage": ["POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DATABASE"],
     # Graph Storage Implementations
     "NetworkXStorage": [],
@@ -90,6 +93,7 @@ STORAGE_ENV_REQUIREMENTS: dict[str, list[str]] = {
     # Document Status Storage Implementations
     "JsonDocStatusStorage": [],
     "RedisDocStatusStorage": ["REDIS_URI"],
+    "ValkeyClusterDocStatusStorage": ["VALKEY_CLUSTER_URI"],
     "PGDocStatusStorage": ["POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DATABASE"],
     "MongoDocStatusStorage": [
         "MONGO_URI",
@@ -124,6 +128,8 @@ STORAGES = {
     "MongoVectorDBStorage": ".kg.mongo_impl",
     "RedisKVStorage": ".kg.redis_impl",
     "RedisDocStatusStorage": ".kg.redis_impl",
+    "ValkeyClusterKVStorage": ".kg.valkey_cluster_impl",
+    "ValkeyClusterDocStatusStorage": ".kg.valkey_cluster_impl",
     "ChromaVectorDBStorage": ".kg.chroma_impl",
     "PGKVStorage": ".kg.postgres_impl",
     "PGVectorStorage": ".kg.postgres_impl",
