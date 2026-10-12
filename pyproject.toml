@@ -82,7 +82,7 @@ api = [
     "jiter",
     "bcrypt>=4.0.0",
     "psutil",
-    "PyJWT>=2.14.0,<3.0.0",        # security floor: CVE-2026-102268
+    "PyJWT>=2.8.0,<3.0.0",         # CVE-2026-102268 fix is enforced via [tool.uv] override-dependencies (zhipuai pins pyjwt<2.9)
     "anyio>=4.14.2",               # security floor: CVE-2026-63374 (transitive via httpx/starlette)
     "python-jose[cryptography]",
     "cryptography>=48.0.1",        # security floor: GHSA-537c-gmf6-5ccf (via python-jose[cryptography])
@@ -194,6 +194,7 @@ python_functions = ["test_*"]
 
 [tool.uv]
 # zhipuai pins pyjwt<2.9; force the patched PyJWT (CVE-2026-102268) for the whole tree.
+# Only uv honours this (uv.lock / Docker image); a plain pip install keeps zhipuai's pin.
 override-dependencies = ["PyJWT>=2.14.0,<3.0.0"]
 
 [tool.ruff]
