@@ -1,0 +1,31 @@
+# Local 6-node Valkey Cluster (3 shards x 1 replica) for the integration tests.
+#
+#   docker compose -f tests/kg/valkey_cluster_impl/valkey-cluster.compose.yaml up -d
+#   # wait until `docker compose ... exec valkey-node-0 valkey-cli cluster info` says cluster_state:ok
+#   docker run --rm --network lightrag-valkey-it_default -v "$PWD:$PWD" -w "$PWD" \
+#     -e VALKEY_CLUSTER_URI=redis://valkey-node-0:6379 <image-with-your-venv> \
+#     python -m pytest tests/kg/valkey_cluster_impl/test_valkey_cluster_integration.py --run-integration
+#   docker compose -f tests/kg/valkey_cluster_impl/valkey-cluster.compose.yaml down -v
+#
+# The nodes announce their container IPs, so the test has to run inside the
+# compose network (or the client needs an address_remap); running it from the
+# host would fail on the first MOVED redirect.
+name: lightrag-valkey-it
+x-node: &node
+  image: bitnamilegacy/valkey-cluster:8.1.3-debian-12-r3
+  environment: &node-env
+    ALLOW_EMPTY_PASSWORD: "yes"
+    VALKEY_NODES: "valkey-node-0 valkey-node-1 valkey-node-2 valkey-node-3 valkey-node-4 valkey-node-5"
+services:
+  valkey-node-0: *node
+  valkey-node-1: *node
+  valkey-node-2: *node
+  valkey-node-3: *node
+  valkey-node-4: *node
+  valkey-node-5:
+    <<: *node
+    depends_on: [valkey-node-0, valkey-node-1, valkey-node-2, valkey-node-3, valkey-node-4]
+    environment:
+      <<: *node-env
+      VALKEY_CLUSTER_REPLICAS: "1"
+      VALKEY_CLUSTER_CREATOR: "yes"

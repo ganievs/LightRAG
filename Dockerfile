@@ -21,6 +21,7 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_SYSTEM_PYTHON=1
+ENV UV_CACHE_DIR=/root/.local/share/uv
 ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /app
@@ -77,6 +78,7 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 ENV UV_SYSTEM_PYTHON=1
+ENV UV_CACHE_DIR=/root/.local/share/uv
 
 # Copy installed packages and application code
 COPY --from=builder /root/.local /root/.local
@@ -112,6 +114,7 @@ ENV PROMPT_DIR=/app/data/prompts
 # chown -R /app MUST run after every data COPY above so the venv (pipmaster
 # installs packages at runtime), data dirs, and the tiktoken cache are writable.
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 lightrag \

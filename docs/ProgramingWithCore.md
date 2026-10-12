@@ -69,7 +69,7 @@ Notes:
 | -------------- | ---------- | ----------------- | ------------- |
 | **working_dir** | `str` | Directory where the cache will be stored | `lightrag_cache+timestamp` |
 | **workspace** | str | Workspace name for data isolation between different LightRAG Instances | |
-| **kv_storage** | `str` | Storage type for documents and text chunks. Supported types: `JsonKVStorage`,`PGKVStorage`,`RedisKVStorage`,`MongoKVStorage`,`OpenSearchKVStorage` | `JsonKVStorage` |
+| **kv_storage** | `str` | Storage type for documents and text chunks. Supported types: `JsonKVStorage`,`PGKVStorage`,`RedisKVStorage`,`ValkeyClusterKVStorage`,`MongoKVStorage`,`OpenSearchKVStorage` | `JsonKVStorage` |
 | **vector_storage** | `str` | Storage type for embedding vectors. Supported types: `NanoVectorDBStorage`,`PGVectorStorage`,`MilvusVectorDBStorage`,`ChromaVectorDBStorage`,`FaissVectorDBStorage`,`MongoVectorDBStorage`,`QdrantVectorDBStorage`,`OpenSearchVectorDBStorage` | `NanoVectorDBStorage` |
 | **graph_storage** | `str` | Storage type for graph edges and nodes. Supported types: `NetworkXStorage`,`Neo4JStorage`,`PGGraphStorage`,`AGEStorage`,`OpenSearchGraphStorage` | `NetworkXStorage` |
 | **doc_status_storage** | `str` | Storage type for documents process status. Supported types: `JsonDocStatusStorage`,`PGDocStatusStorage`,`MongoDocStatusStorage`,`OpenSearchDocStatusStorage` | `JsonDocStatusStorage` |
@@ -602,6 +602,7 @@ LightRAG uses 4 types of storage for different purposes:
 JsonKVStorage        JsonFile (default)
 PGKVStorage          Postgres
 RedisKVStorage       Redis
+ValkeyClusterKVStorage  Valkey Cluster / Redis Cluster
 MongoKVStorage       MongoDB
 OpenSearchKVStorage  OpenSearch
 ```
@@ -875,7 +876,7 @@ The `workspace` parameter ensures data isolation between different LightRAG inst
 | Storage Type | Isolation Method |
 |---|---|
 | `JsonKVStorage`, `JsonDocStatusStorage`, `NetworkXStorage`, `NanoVectorDBStorage`, `FaissVectorDBStorage` | Workspace subdirectories |
-| `RedisKVStorage`, `MilvusVectorDBStorage`, `MongoKVStorage`, `MongoVectorDBStorage`, `MongoGraphStorage`, `PGGraphStorage` | Workspace prefix on collection name |
+| `RedisKVStorage`, `ValkeyClusterKVStorage`, `MilvusVectorDBStorage`, `MongoKVStorage`, `MongoVectorDBStorage`, `MongoGraphStorage`, `PGGraphStorage` | Workspace prefix on collection name |
 | `QdrantVectorDBStorage` | Payload-based partitioning (Qdrant multitenancy) |
 | `PGKVStorage`, `PGVectorStorage`, `PGDocStatusStorage` | `workspace` field in tables |
 | `Neo4JStorage` | Labels |
